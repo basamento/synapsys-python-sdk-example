@@ -121,6 +121,43 @@ Useful checks:
 Do not print passwords, tokens, personal information, or other secrets inside a
 managed process: captured console output is transmitted to Core.
 
+## Shutdown
+
+Stopping the application (Ctrl-C, or `SIGTERM` from a container runtime) calls
+`synapsys.stop()`, which runs a bounded cooperative shutdown:
+
+1. the heartbeat loop stops;
+2. every running process is asked to stop;
+3. the SDK waits up to `shutdown_timeout` (`SYNAPSYS_SHUTDOWN_TIMEOUT`, 10s by
+   default) for them to become terminal;
+4. one best-effort final heartbeat reports the final states and any queued log lines,
+   and the commands in its response are ignored;
+5. `sys.stdout` and `sys.stderr` are restored.
+
+Two processes here are worth stopping the application while they run:
+
+- **`slow-stopper`** takes several seconds to notice its `StopSignal`, so you see the
+  SDK waiting for it and then reporting it as terminal.
+- **`uncancellable-batch`** never checks its `StopSignal` at all. It outlasts a short
+  budget on purpose, and the SDK says so:
+
+  ```
+  [Synapsys] Process 'uncancellable-batch' did not stop before the shutdown timeout |
+  it is still running and will not be replaced by a new execution
+  ```
+
+  It is **not** killed. Python cannot safely terminate a thread, so the SDK reports
+  it, keeps observing it, and refuses to start a replacement run over the top of it.
+
+## Start while stopping
+
+Stop `uncancellable-batch` from the Core console and immediately press Start again.
+The SDK **defers** the new start rather than acknowledging it: the old run's `runId`
+stays in place, the token stays unacknowledged, and Core redelivers the command until
+the old run is terminal — at which point the new run actually happens. Acknowledging
+that start as a no-op, as older versions did, would have told Core the run had
+happened when nothing ran.
+
 ## Running without Core
 
 The SDK can be disabled completely while still constructing the application:
