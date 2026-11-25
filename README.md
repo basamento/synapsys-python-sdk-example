@@ -195,5 +195,5 @@ tests/test_example.py                          registration and status tests
 
 ## License
 
-Apache License 2.0.
+Apache License 2.0. See [LICENSE](LICENSE).
 
